@@ -7,7 +7,7 @@ Cette documentation décrit le processus d’automatisation du déploiement d’
 ## Prérequis
 
 - **Infrastructure fonctionnelle** comme présenté dans le README.md
-- **Ansible** : Installer Ansible sur votre machine bastion. [Documentation Ansible](https://docs.ansible.com/ansible/latest/installation_guide/index.html)
+- **Ansible** : Installer Ansible . [Documentation Ansible](https://docs.ansible.com/ansible/latest/installation_guide/index.html)
 
 ## Fonctionnement du déploiement
 
