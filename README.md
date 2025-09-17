@@ -13,13 +13,13 @@ Cette documentation décrit le processus d’automatisation du déploiement d’
 
 Le déploiement fonctionne comme suit :
 
-# 📌 Documentation des Playbooks Ansible
+#  Documentation des Playbooks Ansible
 
 Cette documentation décrit chaque playbook utilisé pour automatiser l'installation, la configuration, la supervision, la sauvegarde et le benchmarking d'une instance PostgreSQL.
 
 ---
 
-## 1️⃣ Playbook : Installation de PostgreSQL 17 (postgres.yml)
+## 1 Playbook : Installation de PostgreSQL 17
 
 **But :**  
 Installer PostgreSQL, créer un utilisateur, une base de données, et configurer l’accès distant.
@@ -40,26 +40,7 @@ Une instance PostgreSQL 17 fonctionnelle, sécurisée, avec un utilisateur et un
 
 ---
 
-## 2️⃣ Playbook : Installation et configuration de Prometheus & Grafana ( monintoring.yml)
-
-**But :**  
-Mettre en place un système de supervision pour PostgreSQL.
-
-**Ce qu’il fait :**  
-- Installe Prometheus et met à jour son cache.  
-- Démarre et active le service Prometheus.  
-- Modifie le fichier `/etc/prometheus/prometheus.yml` pour ajouter le job `postgres` qui collecte les métriques de PostgreSQL via le `postgres_exporter`.  
-- Installe les prérequis pour Grafana (`wget`, `software-properties-common`, `apt-transport-https`).  
-- Ajoute la clé GPG et le dépôt officiel Grafana.  
-- Installe Grafana et démarre le service.
-
-**Résultat attendu :**  
-- Prometheus collecte les métriques PostgreSQL.  
-- Grafana fournit des dashboards pour visualiser les performances du serveur.
-
----
-
-## 3️⃣ Playbook : Activer pg_stat_statements 
+## 2 Playbook : Activer pg_stat_statements
 
 **But :**  
 Activer l’extension PostgreSQL `pg_stat_statements` pour analyser les requêtes SQL.
@@ -75,7 +56,7 @@ PostgreSQL peut enregistrer et analyser les requêtes SQL exécutées, ce qui pe
 
 ---
 
-## 4️⃣ Playbook : Sauvegarde avec pgBackRest
+## 3 Playbook : Sauvegarde avec pgBackRest
 
 **But :**  
 Mettre en place un système de sauvegarde fiable pour PostgreSQL.
@@ -92,7 +73,7 @@ Un système de sauvegarde automatisé, capable de restaurer PostgreSQL en cas de
 
 ---
 
-## 5️⃣ Playbook : Benchmark PostgreSQL avec pgBench
+## 4 Playbook : Benchmark PostgreSQL avec pgBench
 
 **But :**  
 Tester les performances du serveur PostgreSQL sous charge.
@@ -106,3 +87,30 @@ Tester les performances du serveur PostgreSQL sous charge.
 
 **Résultat attendu :**  
 Un rapport détaillé sur les performances du serveur (transactions par seconde, latence, etc.), permettant d’évaluer la capacité de PostgreSQL.
+
+---
+
+## 5 Playbook : Installation de Prometheus, Grafana et PostgreSQL Exporter
+
+**But :**  
+Installer et configurer un système de supervision complet pour PostgreSQL incluant Prometheus, Grafana et PostgreSQL Exporter.
+
+**Ce qu’il fait :**  
+- Installe Prometheus, le démarre et configure le job `postgres` pour scraper les métriques PostgreSQL.  
+- Installe Grafana avec les dépôts officiels, démarre le service et l’active.  
+- Crée un utilisateur système et un utilisateur PostgreSQL pour `postgres_exporter`.  
+- Télécharge et décompresse l’exécutable `postgres_exporter`.  
+- Crée un service systemd pour l’exporter et l’active afin qu’il démarre automatiquement.  
+- Fournit un handler pour redémarrer Prometheus si la configuration change, garantissant que les métriques PostgreSQL sont collectées correctement.
+
+**Résultat attendu :**  
+Un environnement de supervision complet où Prometheus collecte les métriques PostgreSQL et Grafana les affiche via des dashboards.
+
+---
+
+##  Utilisation
+
+Pour exécuter un playbook :  
+
+```bash
+ansible-playbook -i hosts mon_playbook.yml
