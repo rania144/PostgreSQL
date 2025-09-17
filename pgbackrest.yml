@@ -1,0 +1,62 @@
+- hosts: server
+  become: yes
+  vars:
+    pgbackrest_backup_dir: /var/lib/pgbackrest
+    pgbackrest_conf_dir: /etc/pgbackrest
+    pgbackrest_conf_file: /etc/pgbackrest/pgbackrest.conf
+    pg_version: "17"
+    pg_cluster: "main"
+    pg_user: "postgres"
+
+  tasks:
+
+    - name: Installer pgBackRest
+      apt:
+        name: pgbackrest
+        state: present
+        update_cache: yes
+
+    - name: Créer le dossier de backup
+      file:
+        path: "{{ pgbackrest_backup_dir }}"
+        state: directory
+        owner: "{{ pg_user }}"
+        group: "{{ pg_user }}"
+        mode: '0750'
+
+    - name: Créer le dossier de configuration pgBackRest
+      file:
+        path: "{{ pgbackrest_conf_dir }}"
+        state: directory
+        owner: "{{ pg_user }}"
+        group: "{{ pg_user }}"
+        mode: '0750'
+
+    - name: Créer le fichier de configuration pgBackRest
+      copy:
+        dest: "{{ pgbackrest_conf_file }}"
+        owner: "{{ pg_user }}"
+        group: "{{ pg_user }}"
+        mode: '0640'
+        content: |
+          [global]
+          repo1-path={{ pgbackrest_backup_dir }}
+          repo1-retention-full=2
+          start-fast=y
+
+          [{{ pg_cluster }}]
+          db-path=/var/lib/postgresql/{{ pg_version }}/main
+          db-user={{ pg_user }}
+
+    - name: Créer la stanza pgBackRest
+      become_user: "{{ pg_user }}"
+      command: >
+        pgbackrest --stanza={{ pg_cluster }} --log-level-console=info stanza-create
+      args:
+        creates: "{{ pgbackrest_backup_dir }}/backup/{{ pg_cluster }}/backup.info"
+
+    - name: Lancer le premier backup
+      become_user: "{{ pg_user }}"
+      command: >
+        pgbackrest --stanza={{ pg_cluster }} --log-level-console=info backup
+

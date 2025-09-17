@@ -1,0 +1,89 @@
+---
+- hosts: server
+  become: yes
+  vars:
+    postgres_version: "17"
+    postgres_user: "myuser"
+    postgres_password: "mypassword"
+    postgres_db: "mydb"
+    postgres_listen_address: "*"
+    postgres_port: 5432
+
+  tasks:
+    - name: Installer les prérequis
+      apt:
+        name:
+          - wget
+          - ca-certificates
+          - gnupg
+          - lsb-release
+        state: present
+        update_cache: yes
+
+    - name: Importer la clé du dépôt PostgreSQL
+      apt_key:
+        url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+        state: present
+
+    - name: Ajouter le dépôt officiel PostgreSQL
+      apt_repository:
+        repo: "deb http://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main"
+        state: present
+
+    - name: Mettre à jour la liste des paquets
+      apt:
+        update_cache: yes
+
+    - name: Installer PostgreSQL version {{ postgres_version }}
+      apt:
+        name: "postgresql-{{ postgres_version }}"
+        state: present
+
+    - name: S'assurer que PostgreSQL est démarré
+      service:
+        name: postgresql
+        state: started
+        enabled: yes
+
+    - name: Attendre que PostgreSQL soit prêt sur le port {{ postgres_port }}
+      wait_for:
+        host: "127.0.0.1"
+        port: "{{ postgres_port }}"
+        delay: 5
+        timeout: 60
+
+    - name: Créer un utilisateur PostgreSQL
+      community.postgresql.postgresql_user:
+        name: "{{ postgres_user }}"
+        password: "{{ postgres_password }}"
+        role_attr_flags: CREATEDB,LOGIN
+      become_user: postgres
+
+    - name: Créer une base de données PostgreSQL
+      community.postgresql.postgresql_db:
+        name: "{{ postgres_db }}"
+        owner: "{{ postgres_user }}"
+      become_user: postgres
+
+    - name: Autoriser l'accès depuis toutes les IP (pg_hba.conf)
+      lineinfile:
+        path: "/etc/postgresql/{{ postgres_version }}/main/pg_hba.conf"
+        regexp: '^host\s+all\s+all\s+127.0.0.1/32'
+        line: "host all all 0.0.0.0/0 md5"
+        state: present
+      notify: Redémarrer PostgreSQL
+
+    - name: Configurer PostgreSQL pour écouter sur {{ postgres_listen_address }}
+      lineinfile:
+        path: "/etc/postgresql/{{ postgres_version }}/main/postgresql.conf"
+        regexp: '^#?listen_addresses'
+        line: "listen_addresses = '{{ postgres_listen_address }}'"
+        state: present
+      notify: Redémarrer PostgreSQL
+
+  handlers:
+    - name: Redémarrer PostgreSQL
+      service:
+        name: postgresql
+        state: restarted
+

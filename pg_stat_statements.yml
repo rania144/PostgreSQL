@@ -1,0 +1,37 @@
+---
+- name: Activer pg_stat_statements sur PostgreSQL
+  hosts: server
+  become: yes
+
+  vars:
+    postgres_db: mydb  # change si nécessaire
+
+  tasks:
+
+    - name: Installer l'extension pg_stat_statements (package)
+      apt:
+        name: postgresql-contrib
+        state: present
+      become: yes
+
+    - name: Ajouter pg_stat_statements à shared_preload_libraries
+      lineinfile:
+        path: /etc/postgresql/17/main/postgresql.conf
+        regexp: '^#?shared_preload_libraries\s*='
+        line: "shared_preload_libraries = 'pg_stat_statements'"
+        state: present
+        backrefs: yes
+      notify: Redémarrer PostgreSQL
+
+    - name: Créer l'extension pg_stat_statements dans la base
+      community.postgresql.postgresql_ext:
+        name: pg_stat_statements
+        db: "{{ postgres_db }}"
+        state: present
+      become_user: postgres
+
+  handlers:
+    - name: Redémarrer PostgreSQL
+      service:
+        name: postgresql
+        state: restarted

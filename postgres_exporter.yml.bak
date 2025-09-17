@@ -1,0 +1,63 @@
+- hosts: server
+  become: yes
+  vars:
+    postgres_exporter_version: "0.17.0"  # Mettre à jour selon la dernière version
+    postgres_exporter_user: "postgres_exporter"
+    postgres_exporter_bin_dir: "/usr/local/bin"
+    postgres_exporter_web_listen: ":9187"
+
+  tasks:
+
+    #########################################
+    # Créer l’utilisateur système pour l’exporter
+    #########################################
+    - name: Créer l’utilisateur pour postgres_exporter
+      user:
+        name: "{{ postgres_exporter_user }}"
+        shell: /usr/sbin/nologin
+        system: yes
+
+    #########################################
+    # Télécharger et installer postgres_exporter
+    #########################################
+    - name: Télécharger postgres_exporter
+      get_url:
+        url: "https://github.com/prometheus-community/postgres_exporter/releases/download/v{{ postgres_exporter_version }}/postgres_exporter-{{ postgres_exporter_version }}.linux-amd64.tar.gz"
+        dest: /tmp/postgres_exporter.tar.gz
+
+    - name: Décompresser postgres_exporter
+      unarchive:
+        src: /tmp/postgres_exporter.tar.gz
+        dest: "{{ postgres_exporter_bin_dir }}"
+        remote_src: yes
+        extra_opts: [--strip-components=1]
+
+    #########################################
+    # Créer le service systemd pour postgres_exporter
+    #########################################
+    - name: Créer le fichier systemd pour postgres_exporter
+      copy:
+        dest: /etc/systemd/system/postgres_exporter.service
+        content: |
+          [Unit]
+          Description=PostgreSQL Exporter
+          After=network.target
+
+          [Service]
+          User={{ postgres_exporter_user }}
+          ExecStart={{ postgres_exporter_bin_dir }}/postgres_exporter \
+            --web.listen-address={{ postgres_exporter_web_listen }}
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+
+    #########################################
+    # Activer et démarrer le service
+    #########################################
+    - name: Activer et démarrer postgres_exporter
+      systemd:
+        name: postgres_exporter
+        enabled: yes
+        state: started
+

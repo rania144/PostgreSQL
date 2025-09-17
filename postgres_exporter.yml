@@ -1,0 +1,137 @@
+---
+- hosts: server
+  become: yes
+  vars:
+    prometheus_version: "2.52.0"
+    grafana_version: "10.0.0"
+    postgres_exporter_version: "0.17.0"
+    postgres_exporter_user: "postgres_exporter"
+    postgres_exporter_bin_dir: "/usr/local/bin"
+    postgres_exporter_web_listen: ":9187"
+
+    postgres_db: "mydb"
+    postgres_user: "exporter"
+    postgres_user_password: "exporter_password"  # mot de passe pour l'utilisateur exporter
+    postgres_root_password: "ton_mot_de_passe"   # mot de passe root postgres
+
+  tasks:
+
+    #########################################
+    # Installer Prometheus
+    #########################################
+    - name: Installer Prometheus
+      apt:
+        name: prometheus
+        state: present
+        update_cache: yes
+
+    - name: Démarrer et activer Prometheus
+      systemd:
+        name: prometheus
+        state: started
+        enabled: yes
+
+    - name: Ajouter postgres_exporter au scrape_configs Prometheus
+      blockinfile:
+        path: /etc/prometheus/prometheus.yml
+        marker: "# {mark} ANSIBLE MANAGED BLOCK postgres"
+        block: |
+          - job_name: 'postgres'
+            static_configs:
+              - targets: ['localhost:9187']
+      notify: Restart Prometheus
+
+    #########################################
+    # Installer Grafana
+    #########################################
+    - name: Installer les prérequis pour Grafana
+      apt:
+        name:
+          - software-properties-common
+          - wget
+          - apt-transport-https
+        state: present
+        update_cache: yes
+
+    - name: Ajouter la clé GPG Grafana
+      ansible.builtin.apt_key:
+        url: https://packages.grafana.com/gpg.key
+        state: present
+
+    - name: Ajouter le dépôt officiel Grafana
+      ansible.builtin.apt_repository:
+        repo: "deb [arch=amd64] https://packages.grafana.com/oss/deb stable main"
+        state: present
+
+    - name: Installer Grafana
+      apt:
+        name: grafana
+        state: present
+        update_cache: yes
+
+    - name: Démarrer et activer Grafana
+      systemd:
+        name: grafana-server
+        state: started
+        enabled: yes
+
+    #########################################
+    # Installer PostgreSQL Exporter
+    #########################################
+    - name: Créer l’utilisateur système pour postgres_exporter
+      user:
+        name: "{{ postgres_exporter_user }}"
+        shell: /usr/sbin/nologin
+        system: yes
+
+    - name: Créer l’utilisateur PostgreSQL pour l’exporter
+      postgresql_user:
+        name: "{{ postgres_user }}"
+        password: "{{ postgres_user_password }}"
+        login_user: postgres
+        login_password: "{{ postgres_root_password }}"
+        login_host: localhost
+        state: present
+
+    - name: Télécharger postgres_exporter
+      get_url:
+        url: "https://github.com/prometheus-community/postgres_exporter/releases/download/v{{ postgres_exporter_version }}/postgres_exporter-{{ postgres_exporter_version }}.linux-amd64.tar.gz"
+        dest: /tmp/postgres_exporter.tar.gz
+
+    - name: Décompresser postgres_exporter
+      unarchive:
+        src: /tmp/postgres_exporter.tar.gz
+        dest: "{{ postgres_exporter_bin_dir }}"
+        remote_src: yes
+        extra_opts: [--strip-components=1]
+
+    - name: Créer le service systemd pour postgres_exporter
+      copy:
+        dest: /etc/systemd/system/postgres_exporter.service
+        content: |
+          [Unit]
+          Description=PostgreSQL Exporter
+          After=network.target
+
+          [Service]
+          User={{ postgres_exporter_user }}
+          Environment=DATA_SOURCE_NAME=postgresql://{{ postgres_user }}:{{ postgres_user_password }}@localhost:5432/{{ postgres_db }}?sslmode=disable
+          ExecStart={{ postgres_exporter_bin_dir }}/postgres_exporter \
+            --web.listen-address={{ postgres_exporter_web_listen }}
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Activer et démarrer postgres_exporter
+      systemd:
+        name: postgres_exporter
+        enabled: yes
+        state: started
+
+  handlers:
+    - name: Restart Prometheus
+      systemd:
+        name: prometheus
+        state: restarted
+

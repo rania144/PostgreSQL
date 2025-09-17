@@ -1,0 +1,37 @@
+---
+- name: Backup PostgreSQL database
+  hosts: server
+  become: yes
+  vars:
+    db_name: mydb
+    db_user: postgres
+    db_password: mypassword
+    backup_dir: /var/backups/postgres
+    backup_file: "{{ backup_dir }}/{{ db_name }}-{{ ansible_date_time.iso8601 }}.sql"
+
+  tasks:
+    - name: Ensure backup directory exists
+      file:
+        path: "{{ backup_dir }}"
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: '0750'
+
+    - name: Export PostgreSQL database with pg_dump
+      become_user: postgres
+      shell: |
+        PGPASSWORD="{{ db_password }}" pg_dump -U {{ db_user }} -d {{ db_name }} -F c -Z 9 -f "{{ backup_file }}"
+      environment:
+        PGOPTIONS: "--client-min-messages=warning"
+
+    - name: Verify backup file exists
+      stat:
+        path: "{{ backup_file }}"
+      register: backup_result
+
+    - name: Fail if backup did not succeed
+      fail:
+        msg: "Backup file was not created!"
+      when: not backup_result.stat.exists
+

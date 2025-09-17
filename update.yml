@@ -1,0 +1,39 @@
+---
+- name: Mise à jour de la base PostgreSQL
+  hosts: server
+  become: yes
+  vars:
+    db_name: mydb
+    db_user: postgres
+    db_password: mypassword
+    local_sql_file: /home/rania4/postgres/sql/update_script.sql  # chemin absolu sur la machine locale
+    remote_sql_file: /tmp/update_script.sql                       # chemin temporaire sur le serveur
+
+  tasks:
+    - name: Copier le script SQL sur le serveur
+      copy:
+        src: "{{ local_sql_file }}"
+        dest: "{{ remote_sql_file }}"
+        owner: postgres
+        group: postgres
+        mode: '0644'
+
+    - name: Vérifier que le fichier SQL existe
+      stat:
+        path: "{{ remote_sql_file }}"
+      register: sql_file
+
+    - name: Assurer que la base existe
+      postgresql_db:
+        name: "{{ db_name }}"
+        state: present
+      become_user: postgres
+      when: sql_file.stat.exists
+
+    - name: Appliquer le script SQL sur la base
+      shell: psql -U {{ db_user }} -d {{ db_name }} -f "{{ remote_sql_file }}"
+      args:
+        executable: /bin/bash
+      become_user: postgres
+      when: sql_file.stat.exists
+

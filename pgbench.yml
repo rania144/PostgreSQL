@@ -1,0 +1,39 @@
+---
+- name: Benchmark PostgreSQL with pgBench
+  hosts: server
+  become: yes
+  vars:
+    db_name: mydb           # base à tester
+    pg_user: postgres
+    scale: 10               # taille de l’échelle pour pgBench
+    clients: 10             # nombre de clients simultanés
+    duration: 60            # durée du test en secondes
+    report_file: /tmp/pgbench_report.txt
+
+  tasks:
+    - name: Installer pgbench
+      apt:
+        name: postgresql-contrib
+        state: present
+        update_cache: yes
+
+    - name: Initialiser la base de test pgBench
+      become_user: "{{ pg_user }}"
+      shell: pgbench -i -s {{ scale }} {{ db_name }}
+      args:
+        executable: /bin/bash
+
+    - name: Lancer le benchmark pgBench
+      become_user: "{{ pg_user }}"
+      shell: pgbench -c {{ clients }} -T {{ duration }} {{ db_name }} > {{ report_file }}
+      args:
+        executable: /bin/bash
+
+    - name: Afficher le rapport pgBench
+      shell: cat {{ report_file }}
+      register: pgbench_output
+
+    - name: Afficher le résultat du benchmark
+      debug:
+        msg: "{{ pgbench_output.stdout }}"
+

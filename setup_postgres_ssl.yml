@@ -1,0 +1,66 @@
+---
+- name: Setup PostgreSQL 17 with SSL
+  hosts: server
+  become: yes
+  vars:
+    ssl_dir: /etc/ssl/postgresql
+    postgres_conf: /etc/postgresql/17/main/postgresql.conf
+    pg_hba_conf: /etc/postgresql/17/main/pg_hba.conf
+
+  tasks:
+    - name: Ensure SSL directory exists
+      file:
+        path: "{{ ssl_dir }}"
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: '0755'
+
+    - name: Generate private key for PostgreSQL
+      community.crypto.openssl_privatekey:
+        path: "{{ ssl_dir }}/server.key"
+        size: 4096
+        type: RSA
+        mode: '0600'
+        owner: postgres
+        group: postgres
+
+    - name: Generate self-signed certificate for PostgreSQL
+      community.crypto.x509_certificate:
+        path: "{{ ssl_dir }}/server.crt"
+        privatekey_path: "{{ ssl_dir }}/server.key"
+        provider: selfsigned
+        selfsigned_create_subject_key_identifier: create_if_not_provided
+        selfsigned_not_after: 20350101000000Z
+        selfsigned_digest: sha256
+        owner: postgres
+        group: postgres
+        mode: '0644'
+
+    - name: Enable SSL in postgresql.conf
+      lineinfile:
+        path: "{{ postgres_conf }}"
+        regexp: '^#?ssl\s*='
+        line: "ssl = on"
+
+    - name: Configure SSL certificate and key in postgresql.conf
+      blockinfile:
+        path: "{{ postgres_conf }}"
+        block: |
+          ssl_cert_file = '{{ ssl_dir }}/server.crt'
+          ssl_key_file = '{{ ssl_dir }}/server.key'
+        marker: "# {mark} ANSIBLE SSL CONFIG"
+
+    - name: Add hostssl rule for all users in pg_hba.conf
+      lineinfile:
+        path: "{{ pg_hba_conf }}"
+        line: "hostssl all all 0.0.0.0/0 md5"
+        state: present
+        insertafter: EOF
+
+    - name: Restart PostgreSQL
+      systemd:
+        name: postgresql@17-main
+        state: restarted
+        enabled: yes
+
