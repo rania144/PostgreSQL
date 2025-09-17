@@ -13,6 +13,17 @@ Cette documentation décrit le processus d’automatisation du déploiement d’
 
 Le déploiement fonctionne comme suit :
 
+##  Fichier d'inventaire Ansible (`inventory.ini`)
+
+Le fichier `inventory.ini` définit les serveurs que **Ansible** va gérer et les variables associées.
+
+### Ce qu’il fait :
+
+- Indique **l’adresse IP ou le nom d’hôte** du serveur cible : `192.168.21.134`.  
+- Précise **l’utilisateur SSH** à utiliser pour se connecter : `rania4`.  
+- Fournit le **chemin vers la clé privée SSH** pour l’authentification sans mot de passe : `~/.ssh/id_rsa`.  
+- Définit des **variables globales** pour tous les serveurs, ici pour forcer l’utilisation de Python 3 : `ansible_python_interpreter=/usr/bin/python3`.
+
 #  Documentation des Playbooks Ansible
 
 Cette documentation décrit chaque playbook utilisé pour automatiser l'installation, la configuration, la supervision, la sauvegarde et le benchmarking d'une instance PostgreSQL.
@@ -114,3 +125,6 @@ Pour exécuter un playbook :
 
 ```bash
 ansible-playbook -i hosts mon_playbook.yml
+
+```bash
+ansible-playbook -i inventory.ini mon_playbook.yml
